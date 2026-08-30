@@ -8,7 +8,7 @@ head. No email leaves the machine.
 
 > Full system overview — pipeline, data cleaning, calibration, results with
 > confidence intervals, and security posture:
-> **https://YOURDOMAIN/projects/phishguard**
+> **https://NOTLIVEYET/projects/phishguard**
 
 ## How it works
 
@@ -112,7 +112,7 @@ seed emails, each expanded into six LLM-rephrased variants):
 The corpus was cleaned and restructured before training (deduplication,
 language filtering, mojibake repair, email-address masking, family-aware
 grouped splitting); the full cleaning ladder and leakage defenses are
-documented in the [system overview](https://YOURDOMAIN/projects/phishguard).
+documented in the [system overview](https://NOTLIVEYET/projects/phishguard).
 The **E-PhishLLM** corpus was used only as a held-out cross-generator
 evaluation probe; it is not redistributed here and no shipped artifact
 derives from it:
