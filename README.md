@@ -8,7 +8,7 @@ head. No email leaves the machine.
 
 > Full system overview — pipeline, data cleaning, calibration, results with
 > confidence intervals, and security posture:
-> **https://NOTCURRENTLYSETUP/projects/phishguard**
+> **https://YOURDOMAIN/projects/phishguard**
 
 ## How it works
 
@@ -106,12 +106,13 @@ seed emails, each expanded into six LLM-rephrased variants):
 > Valid: Generating Feature-Rich Emails for Benchmarking LLMs,"*
 > arXiv:2511.21448 [cs.CR].
 > Dataset: https://github.com/DataPhish/PhishFuzzer
-> License: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+> (published as an open-science release; no explicit license at the time of
+> writing — see [`artifacts/LICENSE.md`](artifacts/LICENSE.md))
 
 The corpus was cleaned and restructured before training (deduplication,
 language filtering, mojibake repair, email-address masking, family-aware
 grouped splitting); the full cleaning ladder and leakage defenses are
-documented in the [system overview](https://NOTCURRENTLYSETUP/projects/phishguard).
+documented in the [system overview](https://YOURDOMAIN/projects/phishguard).
 The **E-PhishLLM** corpus was used only as a held-out cross-generator
 evaluation probe; it is not redistributed here and no shipped artifact
 derives from it:
