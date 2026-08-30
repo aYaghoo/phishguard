@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PhishGuard offscreen</title>
+</head>
+<body>
+  <!-- The offscreen document is a non-DOM, durable context (companion T-4/T-6):
+       it is where warm inference and the artifact-loader live. This page has no
+       UI; it exists only to host the scripts. Load order matters: the contract
+       modules first, then the host that uses them. -->
+  <script src="artifact_loader.js"></script>
+  <script src="fusion.js"></script>
+  <script src="feature_extractor.js"></script>
+  <script src="lightgbm_model.js"></script>
+  <script src="lightgbm_runner.js"></script>
+  <script src="text_model.js"></script>
+  <script src="offscreen.js"></script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+{
+  "manifest_version": 1,
+  "name": "PhishGuard",
+  "version": "1.0.0",
+  "description": "On-device, interpretable, calibrated phishing detection for Gmail. Runs 100% locally; no network permission requested.",
+
+  "minimum_chrome_version": "116",
+
+  "permissions": [
+    "offscreen"
+  ],
+
+  "host_permissions": [
+    "https://mail.google.com/*"
+  ],
+
+  "externally_connectable": {},
+
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["dom_adapter.js", "verdict_ui.js", "content_script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'none'"
+  }
+}
