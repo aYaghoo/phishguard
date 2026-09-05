@@ -95,13 +95,35 @@
   // Gmail renders the sender in a span carrying the address in an attribute.
   // Hierarchy: the .gD / span[email] attribute (stable-ish data hook) over the
   // visible display-name text.
-  function readSender() {
-    // span[email="..."] is Gmail's long-standing sender hook; .gD is its class.
-    const el = document.querySelector('span[email], .gD[email], .gD');
+  //
+  // SCOPE (bugfix): the sender MUST be read from WITHIN the open message node,
+  // not the whole document. The inbox list rows also carry span[email]/.gD hooks
+  // and precede the open message in DOM order, so a document-wide querySelector
+  // returns the TOP INBOX ROW's sender, mis-attributing every open email. We
+  // therefore query inside the open message node (findOpenMessageNode), matching
+  // how readUrls scopes to the body node. A document-wide read is kept ONLY as a
+  // fallback for layouts that render the sender header just outside the message
+  // container, and is reached only when the scoped read finds nothing.
+  const SENDER_SELECTOR = 'span[email], .gD[email], .gD';
+
+  function pickSender(el) {
     if (!el) return { display: null, address: null };
     const address = el.getAttribute('email') || null;   // the actual address
     const display = (el.getAttribute('name') || el.textContent || '').trim() || null;
     return { display, address };
+  }
+
+  function readSender(node) {
+    // Prefer the open message node passed by the caller; fall back to locating it.
+    const scope = node || findOpenMessageNode();
+    if (scope) {
+      const scoped = scope.querySelector(SENDER_SELECTOR);
+      if (scoped) return pickSender(scoped);
+    }
+    // Fallback: some layouts host the sender header outside the message body
+    // container. Only reached when the scoped read found nothing, so it cannot
+    // silently reintroduce the top-inbox-row mis-read for the common layout.
+    return pickSender(document.querySelector(SENDER_SELECTOR));
   }
 
   // ---- URLs (from the body node only; not the whole page) ----------------
@@ -248,7 +270,7 @@
       open: true,
       emailId,
       subject: readSubject(),
-      sender: readSender(),
+      sender: readSender(node), // scope sender to THIS open message (bugfix)
       body: body.text,
       bodySelector: body.selector, // which selector won (for live confirmation)
       urls: readUrls(),
