@@ -1,21 +1,19 @@
 /**
- * dom_adapter.js  --  the ONLY module that touches Gmail's DOM (companion roster;
- * Layer-2 containment: all selectors behind one file, so a Gmail change is a
- * one-file fix). Runs in the page (content-script) context.
+ * dom_adapter.js — the only module that touches Gmail's DOM (Layer-2
+ * containment: all selectors behind one file, so a Gmail change is a one-file
+ * fix). Runs in the page (content-script) context.
  *
- * SELECTOR HIERARCHY (companion): ARIA / data-* over structural over class.
- * Gmail's class names are auto-generated and volatile; data-* attributes and
- * ARIA roles are far more stable. We prefer them and fall back down the chain.
+ * Selector hierarchy: ARIA / data-* over structural over class. Gmail's class
+ * names are auto-generated and volatile, while data-* attributes and ARIA roles
+ * are far more stable, so we prefer them and fall back down the chain.
  *
- * STEP-3 SCOPE: the smallest useful read -- detect that an email is OPEN and read
- * its emailId (data-legacy-message-id, O-5) + subject. NOT the body, sender, or
- * URLs yet (those are the next increments), and NOT the quiescence/debounce
- * timers or the canary (later). One field at a time so a selector break is
- * localizable.
+ * Scope: reads what the scorer needs from the open message — emailId
+ * (data-legacy-message-id), subject, sender, body, and body URLs — each behind
+ * its own locate function, so a selector break stays localizable to one field.
  *
- * On total failure every locate returns NO node (R1): the caller does nothing
- * rather than mis-reading. No throw on a missing selector -- a missing email is
- * a normal state (inbox list view), not an error.
+ * On failure every locate returns no node: the caller does nothing rather than
+ * mis-reading. A missing selector doesn't throw — a missing email is a normal
+ * state (inbox list view), not an error.
  */
 
 'use strict';
@@ -23,13 +21,13 @@
 (function () {
   const TAG = '[PhishGuard dom]';
 
-  // ---- emailId (O-5): the stable identity anchor -------------------------
-  // data-legacy-message-id is Gmail's durable per-message id. The open message
-  // container carries it. This is the blueprint's named hook (readEmailId).
+  // ---- emailId: the stable identity anchor -------------------------------
+  // data-legacy-message-id is Gmail's durable per-message id, carried by the
+  // open message container. This is the extractor's named hook (readEmailId).
   function findOpenMessageNode() {
     // Preferred: the open message view carries data-legacy-message-id. In the
-    // conversation view there may be several; the LAST expanded one is the one
-    // in focus. We take the last present as a first approximation (step 3).
+    // conversation view there may be several; the last expanded one is the one
+    // in focus. We take the last present as a first approximation.
     const withId = document.querySelectorAll('[data-legacy-message-id]');
     if (withId.length > 0) {
       return withId[withId.length - 1];
@@ -60,9 +58,9 @@
     return null; // subject not found -- report null, do not guess
   }
 
-  // ---- body (the blueprint's designed selector chain; confirming live) ---
-  // ORDER is the settled contract (ARIA -> data-* -> structural -> class); the
-  // STRINGS are the ones the blueprint flagged "CONFIRM ON LIVE GMAIL". Gmail's
+  // ---- body selector chain ------------------------------------------------
+  // The order is the settled contract (ARIA -> data-* -> structural -> class);
+  // the selector strings still need confirming against live Gmail. Gmail's
   // message body is div.a3s; we anchor it under progressively-less-stable parents.
   const BODY_SELECTORS = [
     'div[role="listitem"] div.a3s', // ARIA role anchor + body class (preferred)
@@ -79,7 +77,7 @@
         return { node: nodes[nodes.length - 1], selector: sel };
       }
     }
-    return { node: null, selector: null }; // total failure -> no node (R1)
+    return { node: null, selector: null }; // total failure -> no node
   }
 
   function readBody() {
@@ -96,14 +94,14 @@
   // Hierarchy: the .gD / span[email] attribute (stable-ish data hook) over the
   // visible display-name text.
   //
-  // SCOPE (bugfix): the sender MUST be read from WITHIN the open message node,
-  // not the whole document. The inbox list rows also carry span[email]/.gD hooks
-  // and precede the open message in DOM order, so a document-wide querySelector
-  // returns the TOP INBOX ROW's sender, mis-attributing every open email. We
-  // therefore query inside the open message node (findOpenMessageNode), matching
-  // how readUrls scopes to the body node. A document-wide read is kept ONLY as a
-  // fallback for layouts that render the sender header just outside the message
-  // container, and is reached only when the scoped read finds nothing.
+  // Scope: the sender is read from within the open message node, not the whole
+  // document. Inbox list rows also carry span[email]/.gD hooks and precede the
+  // open message in DOM order, so a document-wide querySelector would return the
+  // top inbox row's sender and mis-attribute every open email. We therefore query
+  // inside the open message node (findOpenMessageNode), matching how readUrls
+  // scopes to the body node. A document-wide read is kept only as a fallback for
+  // layouts that render the sender header just outside the message container,
+  // reached only when the scoped read finds nothing.
   const SENDER_SELECTOR = 'span[email], .gD[email], .gD';
 
   function pickSender(el) {
@@ -141,9 +139,9 @@
     return [...seen];
   }
 
-  // ---- verdict banner DOM sink [UI-plan / R9] ---------------------------
-  // The banner element is created ONCE and reused. All setters touch ONLY
-  // textContent / hidden / style — NEVER innerHTML (R9 anti-XSS). This is the
+  // ---- verdict banner DOM sink -------------------------------------------
+  // The banner element is created once and reused. All setters touch only
+  // textContent / hidden / style — never innerHTML (anti-XSS). This is the
   // 'dom' object verdict_ui.applyPlan writes through; it is dumb glue, no logic.
   let bannerEl = null;
   let bannerParts = null;
@@ -239,7 +237,7 @@
       while (ul.firstChild) ul.removeChild(ul.firstChild); // clear (no innerHTML)
       for (const label of labels) {
         const li = document.createElement('li');
-        li.textContent = label; // textContent only (R9)
+        li.textContent = label; // textContent only
         ul.appendChild(li);
       }
       ul.style.display = labels.length ? 'block' : 'none';
@@ -270,7 +268,7 @@
       open: true,
       emailId,
       subject: readSubject(),
-      sender: readSender(node), // scope sender to THIS open message (bugfix)
+      sender: readSender(node), // scope sender to this open message
       body: body.text,
       bodySelector: body.selector, // which selector won (for live confirmation)
       urls: readUrls(),
