@@ -1,12 +1,20 @@
 /**
- * service_worker.js  --  STEP 1 skeleton. The worker is the event router (it may
- * die every ~30s and owns no state, companion T-4). For now it does exactly one
- * thing: ensure the offscreen document EXISTS, because the offscreen doc is what
- * loads and validates the artifact bundle. Without the worker creating it, the
- * offscreen document never boots.
+ * service_worker.js  --  the event router (it may die every ~30s and owns no
+ * state, companion T-4). Two jobs, both shipped:
  *
- * Later steps add: the request/reply routing between content script and
- * offscreen (T-6), and re-creation of the offscreen doc if the worker respawns.
+ *   1. Ensure the offscreen document EXISTS, because the offscreen doc is what
+ *      loads and validates the artifact bundle. Without the worker creating it,
+ *      the offscreen document never boots. ensureOffscreen() runs once at load
+ *      AND at the head of every routed message, so a worker that died and
+ *      respawned re-creates the doc instead of routing into nothing.
+ *   2. Route request/reply between the content script and the offscreen
+ *      document (T-6): QUERY_READY and SCORE_EMAIL are forwarded under distinct
+ *      *_OFFSCREEN types (so the worker cannot catch its own forward) and the
+ *      replies are relayed back.
+ *
+ * The worker holds NO readiness state and caches nothing --- see the PURE ROUTER
+ * note on the onMessage listener. C-j: messages are accepted only when they
+ * carry this extension's own id.
  */
 
 'use strict';

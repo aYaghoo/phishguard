@@ -1,5 +1,5 @@
 /**
- * PhishGuard v3 --- Module 3 (part 2): Fusion, struct-only slice (fusion.js)
+ * PhishGuard v3 --- Module 3 (part 2): Fusion (fusion.js)
  *
  * Browser port of fusion.py (same control flow + seam guards, 1:1). Runs in the
  * OFFSCREEN document. Implementation Companion v1.6 (fusion.js module sketch +
@@ -9,19 +9,22 @@
  * fusion.js is the score choke-point: router (T-2), prior-shift (T-3), two-source
  * alarm composition (T-1/C-k), and the assembly of the ONE verdict payload.
  *
- * MILESTONE-3 SCOPE ("fusion (struct only)"): the LightGBM path wired end-to-end
- * through fuse with a p_text STUB (DistilBERT is Milestone 4). The fusion WEIGHTS
- * w, w', per-head piCal, piDeploy, and the mapped cutoff are Milestone-5 / O-7
- * artifacts and are INJECTED via FusionParams --- NOT hardcoded, because those
- * numbers are not yet fit and fabricating them is exactly what the project
- * forbids. This file ships the real control flow; Milestone 5 swaps in the
- * fitted artifact behind this fixed signature.
+ * SHIPPED SCOPE: both heads are wired end-to-end through fuse. p_text is the
+ * real TF-IDF text model (text_model.js), NOT a stub --- DistilBERT was
+ * evaluated and REJECTED, so there is no neural text head. The fusion WEIGHTS
+ * w and w', the per-head piCal and recalibrators, piDeploy (O-7) and the mapped
+ * cutoff ARE fit, and are INJECTED via FusionParams --- NOT hardcoded.
+ * offscreen.js builds them from artifacts/deploy_bundle.json at init, so this
+ * file never carries a number it did not receive. That injection seam is the
+ * point and it is unchanged: a refit artifact drops in behind this same
+ * signature without touching the control flow here.
  *
  * SEAMS (mirror the .py):
- *   [FU-alpha] fusion params injected (unfit in M3). piCal=33.9% for BOTH heads
- *              is the one pinned value (C-h step 1), recorded as PI_CAL_BLUEPRINT.
- *   [FU-beta]  the router is one piece: both heads reachable + tested; M3 does not
- *              claim w' is FIT (that is M5).
+ *   [FU-alpha] fusion params are injected, never hardcoded. piCal=33.9% for BOTH
+ *              heads is the one pinned value (C-h step 1), recorded as
+ *              PI_CAL_BLUEPRINT and matched by the shipped bundle.
+ *   [FU-beta]  the router is one piece: both heads reachable + tested, and BOTH
+ *              w and w' are fit --- w' fit INDEPENDENTLY on text-only rows (O-1).
  *   [FU-gamma] rationale source: contributions on a full row, rule_fires[] on a
  *              routed row (contributions are [] there by construction).
  */
@@ -35,8 +38,9 @@ const PI_DEPLOY_IS_ASSUMED = true; // O-7: assumed until R4 -> shown number is c
 function makeHead(name, weights, piCal, recalibrator) {
   // recalibrator = { A, B }: the post-fusion 1-D sigmoid recalibration (C1 step 3,
   // "the fused score is calibrated again"). Fit per-head on the calibration fold
-  // (Milestone 5). Defaults to identity {A:1, B:0} so an M3-era caller that has
-  // not fit one yet gets the pre-M5 behavior (combine -> prior-shift) unchanged.
+  // and shipped in deploy_bundle.json. Defaults to the identity recalibrator
+  // {A:1, B:0}, so a caller that supplies none gets combine -> prior-shift
+  // unchanged.
   const rc = recalibrator
     ? Object.freeze({ A: recalibrator.A, B: recalibrator.B })
     : Object.freeze({ A: 1.0, B: 0.0 });
@@ -129,7 +133,7 @@ function fuse(emailId, pText, pStruct, contributions, ruleFires, supportFlag, ba
   }
 
   // C1 step 3: the fused score is calibrated AGAIN, with the PRODUCING head's
-  // recalibrator. Identity {A:1,B:0} for an M3-era head with none fit yet.
+  // recalibrator. Identity {A:1,B:0} for a head constructed without one.
   const pCal = applyCalibrator(pFused, head.recalibrator.A, head.recalibrator.B);
 
   // T-3: prior-shift applied HERE with the PRODUCING head's piCal (C-h).

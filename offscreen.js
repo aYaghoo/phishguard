@@ -1,14 +1,26 @@
 /**
- * offscreen.js  --  STEP 1 skeleton: prove the offscreen document boots and the
- * artifact gate passes on the real bundle. Nothing scores yet.
+ * offscreen.js  --  hosts the scorer. Boots the offscreen document, passes the
+ * artifact gate on the real bundle, assembles the scoring chain, and answers
+ * score requests routed from the worker.
  *
  * The offscreen document is the durable non-DOM context (companion T-4/T-6). At
  * init it is the artifact-loader owner (T-10): it loads the whole artifact set
  * and REFUSES to proceed if incoherent (O-1), rather than each runner checking
- * its own asset. This step wires only that gate + a "ready" log.
+ * its own asset.
  *
- * Later steps add: model runners (LightGBM + text), the inbound ScoreMsg
- * validator (C-j/T-13), the readiness push to the worker (T-6), and fuse().
+ * SHIPPED CHAIN: fetch deploy_bundle.json -> loadBundleOrRefuse (T-10/O-1) ->
+ * fetch lightgbm_model.json + text_model.json -> assembleScorer() builds the
+ * StructModel, the TF-IDF TextModel and the two fusion heads from the bundle;
+ * then per email: extract -> text head (+ struct head when support_flag) ->
+ * fuse(). This document has NO DOM --- it receives already-parsed fields from
+ * the content script and never reads Gmail itself.
+ *
+ * OPEN SEAM (do not read the above as covering it): there is still NO inbound
+ * ScoreMsg shape validator (C-j/T-13). msg.node is handed to the scorer as
+ * received; the only check standing between Gmail and this handler is the
+ * extension-id test in service_worker.js. Readiness stayed a PULL (T-6) --- the
+ * page-context UI queries through the worker; the push named in the original
+ * plan was never built, and the pull is the shipped design, not a placeholder.
  */
 
 'use strict';
