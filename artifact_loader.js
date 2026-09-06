@@ -1,33 +1,32 @@
 /**
- * artifact_loader.js  --  the T-10 / O-1 artifact-set coherence validator.
+ * artifact_loader.js — artifact-set coherence validator.
  *
- * ONE owner (offscreen document) validates the WHOLE artifact set at init and
- * REFUSES TO LOAD a mismatch rather than mis-scoring (O-1: "refuses to load
- * rather than mis-scoring"). Not five scattered per-runner checks -- one place
- * that answers "is this artifact set coherent."
+ * One owner (the offscreen document) validates the whole artifact set at init
+ * and refuses to load a mismatch rather than mis-scoring — one place that
+ * answers "is this artifact set coherent," instead of scattered per-runner
+ * checks.
  *
- * PORT-SPLIT: the coherence rules are contract logic (Python validate_bundle in
- * fusion_deploy.py is the mutation-tested owner); this JS is the deployed port,
- * proven identical by parity_artifact_loader.cjs. Same discipline as fusion.js.
+ * Port split: the coherence rules are contract logic (Python `validate_bundle`
+ * in fusion_deploy.py is the mutation-tested owner); this JS is the deployed
+ * port, proven identical by parity_artifact_loader.cjs — same discipline as
+ * fusion.js.
  *
- * WHAT IT CHECKS (T-10, O-1, C-h step 1):
- *   - schema_version matches the runtime's expected version (a stale/foreign
+ * What it checks:
+ *   - schema_version matches the runtime's expected version (a stale or foreign
  *     bundle is refused, not best-effort loaded);
- *   - each head carries its O-1 pi_cal stamp (the number the prior-shift needs);
- *   - both heads share the SAME pi_cal (C-h step 1: same calibration base rate --
- *     a routed row and a full row must be prior-shifted from the same prior);
- *   - the full head has arity-3 weights, the text-only head arity-2 (O-1: "distinct
- *     keys with arity"); a mis-shaped head is the shape-mismatch tripwire;
- *   - each head has a recalibrator {A,B} (C1 step 3);
+ *   - each head carries its pi_cal calibration stamp;
+ *   - both heads share the same pi_cal, so a routed row and a full row are
+ *     prior-shifted from the same base rate;
+ *   - the full head has arity-3 weights, the text-only head arity-2; a
+ *     mis-shaped head trips the shape-mismatch check;
+ *   - each head has a recalibrator {A, B};
  *   - pi_dep in (0,1), mapped_cutoff in [0,1];
- *   - the base-model provenance hashes, IF present, are internally consistent:
- *     the text head's fit references the SAME text_calibrator the bundle ships
- *     (O-1's "w' matches the temperature-scaler it was fit against"). Absent
- *     hashes are allowed (v1 may not stamp them yet) but a PRESENT-and-MISMATCHED
- *     hash is a hard refusal.
+ *   - base-model provenance hashes, if present, are internally consistent (the
+ *     text head's fit references the same text_calibrator the bundle ships).
+ *     Absent hashes are allowed; a present-but-mismatched hash is a hard refusal.
  *
- * Returns [] when coherent; a non-empty list of problem strings otherwise. The
- * caller (offscreen init) refuses to proceed if the list is non-empty.
+ * Returns [] when coherent; otherwise a list of problem strings, and the caller
+ * (offscreen init) refuses to proceed.
  */
 
 'use strict';
