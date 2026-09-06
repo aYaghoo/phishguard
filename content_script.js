@@ -45,11 +45,10 @@ queryReady();
 const TAG = '[PhishGuard content]';
 let lastEmailId = null;
 let debounceTimer = null;
-// [CS-debounce] OPEN SEAM: 250ms is a PLACEHOLDER, not the designed T_d.
-// The real debounce (dom_adapter.py) is a leading-edge lockout of T_d with an
-// enforced T_d < T_q invariant against a quiescence timer (O-4, C-e/A-5).
-// Neither T_d nor T_q has been measured, and this script has no quiescence
-// timer at all --- just this trailing setTimeout. Do not read 250 as fit.
+// Debounce: 250ms is a placeholder, not a tuned value. The intended design is a
+// leading-edge lockout coordinated with a quiescence timer; this script
+// currently implements only a trailing setTimeout, and neither interval has
+// been measured.
 const DEBOUNCE_MS = 250;
 
 function onMaybeChanged() {
