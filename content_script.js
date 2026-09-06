@@ -95,7 +95,7 @@ scheduleProbe();
 // ---- request a score for the open email --------------------------------
 // Map the dom_adapter node -> the extractor's node shape, send to the offscreen
 // document (via the worker), and log the returned verdict. The offscreen doc does
-// the scoring; the content script never computes calibration (T-3).
+// the scoring; the content script never computes calibration.
 async function scoreEmail(domNode) {
   // field mapping: dom_adapter {subject, sender:{display,address}, body, urls}
   //             -> extractor  {emailId, subject, body, senderDisplay, senderDomain, urls}
@@ -119,9 +119,9 @@ async function scoreEmail(domNode) {
         `p_deploy=${v.pDeploy === null ? 'null' : v.pDeploy.toFixed(4)} ` +
         `lead=${v.leadSource} producedBy=${v.producedBy}`
       );
-      // render the verdict to a plan (pure logic, T-3) and apply it to
-      // the Gmail DOM through the textContent-only sink (R9). The UI NEVER
-      // recomputes — it renders the finished verdict.
+      // render the verdict to a plan (pure logic) and apply it to the Gmail DOM
+      // through the textContent-only sink. The UI never recomputes — it renders
+      // the finished verdict.
       try {
         const plan = window.VerdictUI.render(v, /*stale=*/false, /*coldRead=*/false);
         window.VerdictUI.applyPlan(plan, window.PhishGuardDom.bannerDom);
