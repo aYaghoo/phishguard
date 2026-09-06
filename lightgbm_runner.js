@@ -22,8 +22,10 @@
  *       HANDLE and a feature vector: the Platt squash, the arity/NaN guards, the
  *       C-g display filter, and the severity ranking. Identical semantics to the
  *       .py, so p_struct cannot silently desync across ports. In deployment the
- *       handle wraps an ONNX Runtime Web session over the tree dump; the tests
- *       inject a plain-object fake handle, so the logic runs without ONNX.
+ *       handle is the pure-JS tree-walk model from lightgbm_model.js
+ *       (makeStructModel over the exported JSON tree dump); the tests inject a
+ *       plain-object fake handle, so the same scoring-contract logic runs
+ *       under either.
  *
  * SEAMS (mirror the .py; do not silently resolve):
  *   [LR-alpha] DISPLAY_EXCLUDED_FEATURES = { sender_brand_mismatch } --- computed

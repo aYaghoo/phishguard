@@ -30,8 +30,7 @@
     {
       "resources": [
         "offscreen.html",
-        "artifacts/*",
-        "vendor/*"
+        "artifacts/*"
       ],
       "matches": [
         "https://mail.google.com/*"
@@ -39,6 +38,6 @@
     }
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'none'"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'none'"
   }
 }
