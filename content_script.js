@@ -1,32 +1,18 @@
 /**
- * content_script.js  --  the Gmail page-context script. Injects into Gmail,
- * detects which email is open, round-trips it to the offscreen scorer through
- * the worker, and renders the returned verdict.
+ * content_script.js — Gmail page-context script. Injects into Gmail, detects
+ * the open email, round-trips it to the offscreen scorer through the worker,
+ * and renders the returned verdict.
  *
- * SHIPPED FLOW: pull readiness from the offscreen document via the worker
- * (QUERY_READY, T-6) -> watch the Gmail SPA with a MutationObserver, debounced
- * -> probe the open message through dom_adapter (window.PhishGuardDom) -> map
- * that DOM node to the extractor's node shape -> SCORE_EMAIL to the worker,
- * which forwards it to the offscreen document -> log the verdict and hand it to
- * verdict_ui (window.VerdictUI), which owns the S1 gate and writes the banner
- * through the textContent-only sink (R9). This module computes NO calibration
- * math (T-3): it renders the finished verdict, it never recomputes one.
+ * Flow: query readiness from the offscreen document (via worker) → watch the
+ * Gmail SPA with a debounced MutationObserver → probe the open message through
+ * dom_adapter → map the DOM node to the extractor's shape → SCORE_EMAIL to the
+ * worker, which forwards to offscreen → hand the verdict to verdict_ui, which
+ * owns the display gate and writes the banner through a textContent-only sink.
+ * This module computes no calibration math; it renders the finished verdict.
  *
- * OPEN SEAMS --- named here because this is the module that is SUPPOSED to own
- * them and does not yet. Do not read the flow above as covering them:
- *   [CS-cache] there is NO verdict cache (T-4/T-5). Re-opening the same email
- *              re-scores it. `lastEmailId` is a dedup guard against
- *              MutationObserver chatter, NOT a cache: there is no settle
- *              counter, no dismiss flag (T-11), and `stale` is passed to
- *              verdict_ui hardcoded false.
- *   [CS-valid] the returning Verdict is NOT validated (C-j/T-13). `reply.ok` is
- *              the only check before the payload is read and rendered.
- *
- * ARCHITECTURAL NOTE (open, not settled here): ~/dev/phishing_project carries a
- * DIFFERENT module under this same filename --- the Node-testable orchestrator
- * port of content_script.py, which DOES own the cache, the settle counter and
- * the reply classifier. Which of the two is canonical is an open question. This
- * header describes only what THIS deployed file does; it does not decide that.
+ * Known limitations: no verdict cache (re-opening an email re-scores it;
+ * `lastEmailId` guards against observer chatter, not a cache); the returned
+ * verdict is trusted on `reply.ok` rather than schema-validated.
  */
 
 'use strict';
