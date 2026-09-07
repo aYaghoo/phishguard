@@ -3,37 +3,36 @@
  * artifact gate on the real bundle, assembles the scoring chain, and answers
  * score requests routed from the worker.
  *
- * The offscreen document is the durable non-DOM context (companion T-4/T-6). At
- * init it is the artifact-loader owner (T-10): it loads the whole artifact set
- * and REFUSES to proceed if incoherent (O-1), rather than each runner checking
- * its own asset.
+ * The offscreen document is the durable non-DOM context. At init it is the
+ * artifact-loader owner: it loads the whole artifact set and refuses to proceed
+ * if incoherent, rather than each runner checking its own asset.
  *
- * SHIPPED CHAIN: fetch deploy_bundle.json -> loadBundleOrRefuse (T-10/O-1) ->
- * fetch lightgbm_model.json + text_model.json -> assembleScorer() builds the
+ * Shipped chain: fetch deploy_bundle.json -> loadBundleOrRefuse -> fetch
+ * lightgbm_model.json + text_model.json -> assembleScorer() builds the
  * StructModel, the TF-IDF TextModel and the two fusion heads from the bundle;
  * then per email: extract -> text head (+ struct head when support_flag) ->
- * fuse(). This document has NO DOM --- it receives already-parsed fields from
- * the content script and never reads Gmail itself.
+ * fuse(). This document has no DOM — it receives already-parsed fields from the
+ * content script and never reads Gmail itself.
  *
- * OPEN SEAM (do not read the above as covering it): there is still NO inbound
- * ScoreMsg shape validator (C-j/T-13). msg.node is handed to the scorer as
- * received; the only check standing between Gmail and this handler is the
- * extension-id test in service_worker.js. Readiness stayed a PULL (T-6) --- the
- * page-context UI queries through the worker; the push named in the original
- * plan was never built, and the pull is the shipped design, not a placeholder.
+ * Known limitation: there is still no inbound ScoreMsg shape validator. msg.node
+ * is handed to the scorer as received; the only check standing between Gmail and
+ * this handler is the extension-id test in service_worker.js. Readiness is a pull
+ * — the page-context UI queries through the worker; the push named in the
+ * original plan was never built, and the pull is the shipped design, not a
+ * placeholder.
  */
 
 'use strict';
 
-// T-6: the offscreen document OWNS the `ready` flag (it is the only context that
-// knows the model + artifacts are resident). The page-context UI PULLS this on
-// demand through the worker; we never push it. `ready` flips true only after the
+// The offscreen document owns the `ready` flag (it is the only context that knows
+// the model + artifacts are resident). The page-context UI pulls this on demand
+// through the worker; we never push it. `ready` flips true only after the
 // artifact gate passes below.
 let READY = false;
 let READY_DETAIL = null; // small human-readable summary for logging/inspection
 let SCORER = null;       // assembled scoring function (node -> verdict), set at init
 
-// T-6 / C-j: answer readiness queries AND score requests routed from the worker.
+// Answer readiness queries and score requests routed from the worker.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const TAG = '[PhishGuard offscreen]';
   if (!msg || typeof msg !== 'object') return false;
@@ -115,8 +114,8 @@ function assembleScorer(bundle, lgbModelJson, textModelJson) {
     }
     const bundle = await resp.json();
 
-    // T-10 / O-1: validate the artifact set; refuse to proceed if incoherent.
-    // ArtifactLoader is the browser global exposed by artifact_loader.js.
+    // Validate the artifact set; refuse to proceed if incoherent. ArtifactLoader
+    // is the browser global exposed by artifact_loader.js.
     ArtifactLoader.loadBundleOrRefuse(bundle);
 
     // load the two model artifacts (LightGBM tree JSON + TF-IDF text model JSON).
@@ -141,7 +140,7 @@ function assembleScorer(bundle, lgbModelJson, textModelJson) {
       `|vocab|=${textModelJson.vocab_terms.length} trees=${lgbModelJson.trees.length}`
     );
   } catch (err) {
-    // O-1 fail-loud: a refusal or load error is LOUD, never a silent bad state.
+    // Fail loud: a refusal or load error is loud, never a silent bad state.
     console.error(`${TAG} INIT FAILED:`, err.message);
   }
 })();
