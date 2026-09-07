@@ -1,6 +1,6 @@
 /**
  * text_model.js  --  the JS text runner: reproduces a fitted sklearn
- * TfidfVectorizer + LogisticRegression pipeline's predict_proba EXACTLY.
+ * TfidfVectorizer + LogisticRegression pipeline's predict_proba exactly.
  *
  * Proven byte-identical to sklearn by parity_text_model.cjs. Every stage mirrors
  * sklearn's defaults (confirmed against the fitted config the exporter records):
@@ -60,7 +60,7 @@ function makeTextModel(modelJson) {
     // Normalize to NFC first so decomposed input is composed before any accent
     // handling (deterministic regardless of the source encoding of a real email).
     s = s.normalize('NFC');
-    // strip_accents runs in sklearn's PREPROCESSOR, before lowercasing+tokenizing.
+    // strip_accents runs in sklearn's preprocessor, before lowercasing+tokenizing.
     s = stripAccents(s);
     if (cfg.lowercase) s = s.toLowerCase();
     const toks = s.match(TOKEN_RE);
