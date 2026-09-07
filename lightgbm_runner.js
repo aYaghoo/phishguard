@@ -1,5 +1,5 @@
 /**
- * PhishGuard v3 — Module 3 (part 1): the LightGBM Runner (lightgbm_runner.js)
+ * PhishGuard v1 — Module 3 (part 1): the LightGBM Runner (lightgbm_runner.js)
  *
  * Browser port of lightgbm_runner.py (same scoring-contract logic, 1:1). Runs in
  * the offscreen document.
