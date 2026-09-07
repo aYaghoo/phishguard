@@ -1,20 +1,20 @@
 /**
  * service_worker.js  --  the event router (it may die every ~30s and owns no
- * state, companion T-4). Two jobs, both shipped:
+ * state). Two jobs, both shipped:
  *
- *   1. Ensure the offscreen document EXISTS, because the offscreen doc is what
+ *   1. Ensure the offscreen document exists, because the offscreen doc is what
  *      loads and validates the artifact bundle. Without the worker creating it,
  *      the offscreen document never boots. ensureOffscreen() runs once at load
- *      AND at the head of every routed message, so a worker that died and
+ *      and at the head of every routed message, so a worker that died and
  *      respawned re-creates the doc instead of routing into nothing.
  *   2. Route request/reply between the content script and the offscreen
- *      document (T-6): QUERY_READY and SCORE_EMAIL are forwarded under distinct
+ *      document: QUERY_READY and SCORE_EMAIL are forwarded under distinct
  *      *_OFFSCREEN types (so the worker cannot catch its own forward) and the
  *      replies are relayed back.
  *
- * The worker holds NO readiness state and caches nothing --- see the PURE ROUTER
- * note on the onMessage listener. C-j: messages are accepted only when they
- * carry this extension's own id.
+ * The worker holds no readiness state and caches nothing — see the pure-router
+ * note on the onMessage listener. Messages are accepted only when they carry
+ * this extension's own id.
  */
 
 'use strict';
@@ -66,14 +66,14 @@ async function ensureOffscreen() {
 chrome.runtime.onStartup.addListener(ensureOffscreen);
 chrome.runtime.onInstalled.addListener(ensureOffscreen);
 
-// T-6: the worker is a PURE ROUTER for request/reply — it holds no readiness
-// state. A content-script QUERY_READY wakes the worker (MV3: a page-context
-// sendMessage revives a dead worker), the worker ensures the offscreen doc
-// exists, forwards the query to it, and relays the reply back. No caching.
+// The worker is a pure router for request/reply — it holds no readiness state.
+// A content-script QUERY_READY wakes the worker (MV3: a page-context sendMessage
+// revives a dead worker), the worker ensures the offscreen doc exists, forwards
+// the query to it, and relays the reply back. No caching.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const TAG = '[PhishGuard worker]';
   if (!msg || typeof msg !== 'object') return false;
-  // C-j: only accept from our own extension.
+  // Only accept messages from our own extension.
   if (!sender || sender.id !== chrome.runtime.id) {
     return false;
   }
