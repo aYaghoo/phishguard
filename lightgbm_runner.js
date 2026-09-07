@@ -1,41 +1,45 @@
 /**
- * PhishGuard v3 --- Module 3 (part 1): the LightGBM Runner (lightgbm_runner.js)
+ * PhishGuard v3 — Module 3 (part 1): the LightGBM Runner (lightgbm_runner.js)
  *
- * Browser port of lightgbm_runner.py (same SCORING contract logic, 1:1). Runs in
- * the OFFSCREEN document. Implementation Companion v1.6 (module roster; Milestone
- * table row 3); blueprint phishguard_v3 sec.model + sec.calibchain +
- * C-a/C-c/C-g/C-i; sec.features sec.D; Addendum 1 A-6; Addendum 2 contribution-
- * vs-trigger.
+ * Browser port of lightgbm_runner.py (same scoring-contract logic, 1:1). Runs in
+ * the offscreen document.
  *
- * Responsibility (roster, ONE job): given the informative structured vector
- * (features[] from the Feature Extractor), return { pStruct, contributions } and
- * NOTHING else. Pure structured-side inference: score the trees' raw margin,
- * apply the Platt sigmoid (C-a/calibchain), emit per-feature contributions
- * (C-i), and hold the brand feature(s) OFF the interpretability surface until R4
- * (C-g). Never sees rule_fires[] (T-1). No fusion, no router, no verdict.
+ * Responsibility (one job): given the informative structured vector (features[]
+ * from the Feature Extractor), return { pStruct, contributions } and nothing
+ * else. Pure structured-side inference: score the trees' raw margin, apply the
+ * Platt sigmoid, emit per-feature contributions, and hold the brand feature(s)
+ * off the interpretability surface for now. Never sees rule_fires[]. No fusion,
+ * no router, no verdict.
  *
- * PORT SPLIT (the INVERSE of Modules 1-2, flagged honestly in the .py):
- *   (1) TRAINING + CALIBRATION is Python-native (lightgbm/sklearn) --- see the
- *       .py train_lightgbm / fit_platt / fit_baseline. That produces the ARTIFACT
+ * Port split (the inverse of Modules 1-2, flagged honestly in the .py):
+ *   (1) training and calibration are Python-native (lightgbm/sklearn) — see the
+ *       .py train_lightgbm / fit_platt / fit_baseline. That produces the artifact
  *       (tree dump + Platt (a,b) + the recorded baseline number).
- *   (2) SCORING CONTRACT LOGIC (this file) --- pure functions of a trained-model
- *       HANDLE and a feature vector: the Platt squash, the arity/NaN guards, the
- *       C-g display filter, and the severity ranking. Identical semantics to the
- *       .py, so p_struct cannot silently desync across ports. In deployment the
- *       handle is the pure-JS tree-walk model from lightgbm_model.js
- *       (makeStructModel over the exported JSON tree dump); the tests inject a
- *       plain-object fake handle, so the same scoring-contract logic runs
- *       under either.
+ *   (2) the scoring contract itself (this file) — pure functions of a
+ *       trained-model handle and a feature vector: the Platt squash, the
+ *       arity/NaN guards, the display filter, and the severity ranking. Identical
+ *       semantics to the .py, so p_struct cannot silently desync across ports. In
+ *       deployment the handle is the pure-JS tree-walk model from
+ *       lightgbm_model.js (makeStructModel over the exported JSON tree dump); the
+ *       tests inject a plain-object fake handle, so the same scoring-contract
+ *       logic runs under either.
  *
- * SEAMS (mirror the .py; do not silently resolve):
- *   [LR-alpha] DISPLAY_EXCLUDED_FEATURES = { sender_brand_mismatch } --- computed
- *              into the score, filtered from the DISPLAYED contributions until R4.
- *   [LR-beta]  monotoneConstraints(): +1 on url_domain_entropy, subdomain_count,
- *              sender_brand_mismatch; 0 on url_count, has_url. Positional, aligned
- *              to _INFORMATIVE_FEATURES; fails loud on an undecided new feature.
- *   [LR-gamma] a Contribution.value is the signed SHAP contribution on the RAW
- *              MARGIN; the model handle drops LightGBM's trailing base term so the
- *              runner sees features-only contributions.
+ * Design notes (mirror the .py):
+ *   - DISPLAY_EXCLUDED_FEATURES = { sender_brand_mismatch } — computed into the
+ *     score, filtered out of the displayed contributions for now.
+ *   - monotoneConstraints(): +1 on url_domain_entropy, subdomain_count,
+ *     sender_brand_mismatch; 0 on url_count, has_url. Positional, aligned to
+ *     _INFORMATIVE_FEATURES; fails loud on an undecided new feature.
+ *   - a Contribution.value is the signed SHAP contribution on the raw margin;
+ *     the model handle drops LightGBM's trailing base term, so the runner sees
+ *     features-only contributions.
+ *   - CONTRIBUTIONS_UNAVAILABLE: a handle that cannot produce attribution returns
+ *     this sentinel, and scoreStruct emits contributions: []. Whether attribution
+ *     exists at all is the handle's fact, not the runner's. The shipped JS handle
+ *     (lightgbm_model.js) has no tree-SHAP yet and uses it, so no unearned
+ *     feature name can reach the display surface. Only this exact value is a
+ *     sentinel — every other non-conforming shape still fails loud on the arity
+ *     guard below.
  */
 
 'use strict';
@@ -50,10 +54,15 @@ const _INFORMATIVE_FEATURES = (typeof require !== 'undefined')
       ? self.FeatureExtractor.INFORMATIVE_FEATURES
       : (() => { throw new Error('lightgbm_runner: FeatureExtractor global not loaded (check offscreen.html script order)'); })());
 
-// [LR-alpha] display exclusion. Single point of truth.
+// Display exclusion. Single point of truth.
 const DISPLAY_EXCLUDED_FEATURES = Object.freeze(['sender_brand_mismatch']);
 
-// [LR-beta] monotone directions by name; materialized positionally below.
+// The "this handle has no attribution" sentinel a StructModel returns from
+// marginContributions. Mirrors lightgbm_runner.py's CONTRIBUTIONS_UNAVAILABLE
+// (None), so the two ports agree on the value and on what it means.
+const CONTRIBUTIONS_UNAVAILABLE = null;
+
+// Monotone directions by name; materialized positionally below.
 const _MONOTONE_BY_NAME = Object.freeze({
   url_count: 0,
   has_url: 0,
@@ -110,7 +119,8 @@ function _validateVector(features) {
 /**
  * Score ONE informative vector. Returns { pStruct, contributions }.
  * model is a StructModel handle: { rawMargin(features)->number,
- * marginContributions(features)->number[] (features-only, base term dropped),
+ * marginContributions(features)->number[] (features-only, base term dropped)
+ * or CONTRIBUTIONS_UNAVAILABLE when the handle cannot attribute,
  * platt()->[a,b] }.
  */
 function scoreStruct(model, features) {
@@ -121,24 +131,32 @@ function scoreStruct(model, features) {
   const pStruct = _sigmoid(a * margin + b);
 
   const rawContribs = model.marginContributions(features);
+  // The handle declares it cannot attribute this row, so there is nothing
+  // displayable and the contribution list is empty — not a row of zeros wearing
+  // feature names. Checked before the arity guard because the sentinel is a valid
+  // answer, not a mis-shaped one. `undefined` is deliberately not accepted here,
+  // so a handle that simply forgot to return still fails loud below.
+  if (rawContribs === CONTRIBUTIONS_UNAVAILABLE) {
+    return { pStruct, contributions: [] };
+  }
   if (!Array.isArray(rawContribs) || rawContribs.length !== _INFORMATIVE_FEATURES.length) {
     throw new Error(
       `scoreStruct: model returned ${rawContribs && rawContribs.length} contributions ` +
         `for ${_INFORMATIVE_FEATURES.length} features; the base/expected-value term must ` +
-        'be dropped by the handle before this point ([LR-gamma]).'
+        'be dropped by the handle before this point.'
     );
   }
 
   const contributions = [];
   for (let i = 0; i < _INFORMATIVE_FEATURES.length; i++) {
     const name = _INFORMATIVE_FEATURES[i];
-    // [LR-alpha] C-g: brand features move the score (already in the margin) but
-    // are NOT displayed until R4. A DISPLAY filter, not a score edit.
+    // Brand features move the score (already in the margin) but are not
+    // displayed for now. A display filter, not a score edit.
     if (DISPLAY_EXCLUDED_FEATURES.includes(name)) continue;
     contributions.push({ feature: name, value: Number(rawContribs[i]) });
   }
-  // C-i/C-k severity order: strongest push toward phishing first. Sign/rank are
-  // Platt-invariant ([LR-gamma]), so ranking on the margin == ranking on pStruct.
+  // Severity order: strongest push toward phishing first. Sign and rank are
+  // Platt-invariant, so ranking on the margin is the same as ranking on pStruct.
   contributions.sort((x, y) => y.value - x.value);
 
   return { pStruct, contributions };
@@ -148,6 +166,7 @@ function scoreStruct(model, features) {
 const __api = {
   INFORMATIVE_FEATURES: _INFORMATIVE_FEATURES,
   DISPLAY_EXCLUDED_FEATURES,
+  CONTRIBUTIONS_UNAVAILABLE,
   monotoneConstraints,
   scoreStruct,
   _sigmoid, // exposed for cross-port parity tests

@@ -11,14 +11,15 @@
  * (null/NaN) feature follows default_left. This mirrors export_lightgbm.py's
  * eval_tree and LightGBM's own raw_score, proven by parity_lightgbm.cjs.
  *
- * marginContributions: LightGBM's true SHAP would need the full tree-SHAP algo.
- * For v1 the runner only DISPLAYS contributions (C-g/[LR-alpha]) and in v1 the
- * brand feature is display-excluded and the map is empty, so a faithful but
- * simple per-feature attribution is acceptable here as a SEAM. [LGB-contrib]:
- * we return a gain-free placeholder attribution (all zeros) so the runner's
- * arity check passes; real tree-SHAP is deferred until contributions are shown
- * (R4). This is flagged, not silently faked -- the DISPLAYED rationale in v1
- * comes from rules/[], not these (composeRationale on the routed/■ path).
+ * marginContributions is a known limitation: LightGBM's true SHAP would need
+ * the full tree-SHAP algorithm, which this handle does not implement. Rather
+ * than invent an attribution, marginContributions returns the runner's
+ * "attribution unavailable" sentinel (null) and scoreStruct then emits an empty
+ * contribution list. That is what keeps unearned feature names off the banner —
+ * the displayed rationale is empty because this file says it has nothing to
+ * attribute, not because a downstream caller happens to discard the list.
+ * Implement real tree-SHAP here (features-only, with the base term dropped) and
+ * the displayed rationale populates end-to-end with no other edit.
  */
 
 'use strict';
@@ -57,12 +58,15 @@ function makeStructModel(modelJson) {
   }
 
   function marginContributions(features) {
-    // [LGB-contrib] SEAM: real tree-SHAP deferred (contributions not displayed in
-    // v1). Return zeros of the right arity so the runner's arity check passes;
-    // the runner drops the base term and filters display-excluded features itself.
-    // NOTE: runner expects features-only length (no base term) -> return nFeatures.
+    // Real tree-SHAP is deferred, so this handle has no attribution to offer
+    // and says so, with the runner's CONTRIBUTIONS_UNAVAILABLE sentinel. A zero
+    // vector would be wrong here: it is indistinguishable from a genuine
+    // all-zero SHAP row, so the runner would emit four zero-valued feature names
+    // and the banner would list them as reasons. When real tree-SHAP lands,
+    // return the features-only vector (length nFeatures, base term dropped); the
+    // arity guard covers that shape and the display filter still applies.
     void features;
-    return new Array(nFeatures).fill(0);
+    return null;
   }
 
   function platt() {

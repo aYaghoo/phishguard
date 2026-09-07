@@ -87,10 +87,19 @@ function assembleScorer(bundle, lgbModelJson, textModelJson) {
     const pTextRaw = textModel.scoreText(ex.text);
     const pTextCal = Fusion.applyCalibrator(pTextRaw, tcA, tcB);
     let pStructCal = null;
+    // The structured head's display-filtered contributions are wired straight
+    // through to fuse; this host withholds nothing. They are empty on the shipped
+    // build because the StructModel handle reports that it has no attribution to
+    // offer — the emptiness is the model's fact, stated once, not a literal []
+    // parked at this call site. When real tree-SHAP lands in lightgbm_model.js
+    // the banner rationale populates with no edit here.
+    let structContributions = [];
     if (ex.support_flag) {
-      pStructCal = LightGBMRunner.scoreStruct(structModel, ex.features).pStruct;
+      const st = LightGBMRunner.scoreStruct(structModel, ex.features);
+      pStructCal = st.pStruct;
+      structContributions = st.contributions;
     }
-    return Fusion.fuse(node.emailId || 'email', pTextCal, pStructCal, [],
+    return Fusion.fuse(node.emailId || 'email', pTextCal, pStructCal, structContributions,
       ex.rule_fires, ex.support_flag, 'js', params);
   };
 }

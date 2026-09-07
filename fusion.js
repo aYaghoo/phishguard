@@ -22,8 +22,16 @@
  *     shipped bundle.
  *   - the router is one piece: both heads reachable and tested, and both w and
  *     w' are fit — w' fit independently on text-only rows.
- *   - rationale source: contributions on a full row, rule_fires[] on a routed
- *     row (contributions are [] there by construction).
+ *   - rationale source: the host hands fuse the structured head's contribution
+ *     list directly (offscreen.js); this file never withholds it. On a routed
+ *     row that list is empty by construction and rule_fires[] carries the
+ *     rationale instead. On the shipped build it is empty on a full row too,
+ *     because the LightGBM model handle reports that it has no attribution to
+ *     offer rather than inventing one — and since v1 ships
+ *     VALIDATED_TRIGGERING_RULES = [], the displayed rationale is currently
+ *     empty on every alarm. The channel is wired and tested ahead of its first
+ *     real payload: landing real tree-SHAP in lightgbm_model.js fills it with
+ *     no change here.
  */
 
 'use strict';
