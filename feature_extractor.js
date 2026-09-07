@@ -1,46 +1,39 @@
 /**
- * PhishGuard v3 --- Module 2: the Feature Extractor (feature_extractor.js)
+ * PhishGuard v1 — Module 2: the Feature Extractor (feature_extractor.js)
  *
  * Browser port of feature_extractor.py (same contract logic, 1:1). Runs in the
- * PAGE context: it is handed ONE DOM-derived email node and returns ONE
- * four-field payload deterministically. Implementation Companion v1.6
- * (sec.modules); blueprint phishguard_v3 sec.features + C-c/C-d/C-g/C-i/C-k/C-l;
- * Addendum 1 A-8; Addendum 2 O-6 + O-10.
+ * page context: it is handed one DOM-derived email node and returns one
+ * four-field payload deterministically.
  *
- * Responsibility (roster, one job): DOM node -> {text, features[], rule_fires[],
+ * Responsibility (one job): DOM node -> {text, features[], rule_fires[],
  * support_flag}, same node -> same payload. Owns the Subject+Body assembly, the
- * informative structured vector (the LightGBM feature list), the O-6 support
- * predicate, and the T-1/O-10 hard-rule evaluation. Touches NO model, NO score.
- * L_max=256 truncation is the RUNNER's job (distilbert_runner, C-d), not here.
+ * structured feature vector (the LightGBM feature list), the support predicate,
+ * and the hard-rule evaluation. Touches no model and computes no score. L_max=256
+ * truncation is the runner's job (distilbert_runner), not here.
  *
- * PORT SPLIT (same discipline as dom_adapter.js):
- *   (1) CONTRACT LOGIC (this file) --- pure functions of an already-parsed
- *       email node ({subject, body, senderDisplay, senderDomain, urls}) and an
+ * Port split (same discipline as dom_adapter.js):
+ *   (1) Contract logic (this file) — pure functions of an already-parsed email
+ *       node ({subject, body, senderDisplay, senderDomain, urls}) and an
  *       injected brand map. Identical semantics to feature_extractor.py, so the
  *       two feature vectors cannot silently desync.
- *   (2) BROWSER BINDING --- the parse of Gmail's DOM into that node lives behind
- *       the SAME single-DOM-contact discipline the dom_adapter owns (Layer 2).
+ *   (2) Browser binding — the parse of Gmail's DOM into that node lives behind
+ *       the same single-DOM-contact discipline dom_adapter owns.
  *       `parseNode(bodyElement, doc)` is the one place DOM reads happen; the
  *       tests inject a plain object node, so the logic is exercised without a
- *       browser. Editing selectors is a one-place change.
+ *       browser, and editing selectors is a one-place change.
  *
- * TWO+ONE SEAMS FLAGGED (mirrors the .py; do not silently resolve):
- *   [FX-alpha] does sender_brand_mismatch count toward support_flag? -> yes,
- *              via SUPPORT_COUNTS_BRAND_MISMATCH (single point). T-2 literal
- *              reading (it is in the LightGBM vector). The invariant it must not
- *              break: an IP-literal-only row routes to w' (ip-literal is a rule
- *              input, NOT in the vector).
- *   [FX-beta]  sender_brand_mismatch needs a bundled brand map (C-g). Injected,
- *              default empty -> "no signal", never a false one. Wire exists and
- *              is tested before its first real payload.
- *   [FX-gamma] what "informative-feature population" (O-6) means for the v1
- *              vector. Reading (B): the vector's DISCRETE TELLS only -- in v1
- *              that is sender_brand_mismatch alone; url_count/has_url/
- *              url_domain_entropy/subdomain_count take ordinary values on O-6's
- *              benign unsubscribe example, so they are SCORE inputs, not support
- *              tells. Consequence: with the default empty brand map, support_flag
- *              is ALWAYS false in v1 production (every row routes to w'); this is
- *              the honest O-6 conservative-until-R4 posture, asserted by a test.
+ * Known limitations / design notes:
+ *   - sender_brand_mismatch counts toward support_flag (via
+ *     SUPPORT_COUNTS_BRAND_MISMATCH, a single point of control) and is also in
+ *     the LightGBM vector. Invariant: an IP-literal-only row must still route to
+ *     the text-only head, since ip-literal is a rule input, not a vector field.
+ *   - sender_brand_mismatch needs a bundled brand map. It is injected, default
+ *     empty, so an absent map yields no signal rather than a false one; the wire
+ *     exists and is tested before its first real payload.
+ *   - support_flag routes on the presence of a domain (non-IP) URL: such rows
+ *     go to full fusion so the structured head scores its URL features, while
+ *     IP-literal-only and URL-less rows go to the text-only head. Benign
+ *     URL-bearing mail is scored by the structured head as an accepted v1 risk.
  */
 
 'use strict';
@@ -61,14 +54,14 @@ const INFORMATIVE_FEATURES = Object.freeze([
   'sender_brand_mismatch',
 ]);
 
-// [FX-gamma] Reading (C): URL-population (SUPERSEDES Reading (B)). support_flag
-// is true when the email has a URL (has_url==1), routing URL-bearing rows to FULL
-// FUSION w so the structured head scores its four URL features; URL-less rows go
-// to text-only w'. Predicate is has_url (threshold-free -- no invented entropy/
-// subdomain cutoff). Benign-unsubscribe emails route to full fusion by design;
-// p_struct scores them (diluted by the strong text head in the fused score). This
-// re-exposes the deferred p_struct-on-real-benign-URL-mail validation as an
-// ACCEPTED v1 risk. Mirrors feature_extractor.py FX-gamma Reading (C).
+// support_flag is true when the email has a domain (non-IP) URL, routing those
+// rows to full fusion so the structured head scores its four URL features;
+// IP-literal-only and URL-less rows go to the text-only head. Threshold-free —
+// no invented entropy or subdomain cutoff. Benign unsubscribe mail routes to
+// full fusion by design; the structured head scores it (diluted by the strong
+// text head in the fused score). Accepted v1 risk: the structured head scores
+// real benign URL-bearing mail without the deferred validation of that path.
+// Mirrors feature_extractor.py.
 const SIGNAL_CARRYING_DISCRETE_TELLS = Object.freeze(['has_url']);
 
 function signalCarryingFeatures() {
@@ -157,9 +150,9 @@ function senderBrandMismatch(display, domain, brandMap) {
 }
 
 // ---------------------------------------------------------------------------
-// Structured vector (informative subset only). IP-literal hosts are EXCLUDED
-// from host-structure stats (T-2: rule inputs are not structured support and
-// must not pollute p_struct).
+// Structured vector (informative subset only). IP-literal hosts are excluded
+// from host-structure stats: rule inputs are not structured support and must
+// not pollute p_struct.
 // ---------------------------------------------------------------------------
 
 function buildInformativeVector(node, brandMap) {
@@ -189,13 +182,14 @@ function buildInformativeVector(node, brandMap) {
 }
 
 // ---------------------------------------------------------------------------
-// O-6 / T-2 / T-9: support predicate. Computed once, here. Reads by NAME.
+// support predicate. Computed once, here. Reads by name.
 // ---------------------------------------------------------------------------
 
 function hasNonIpUrl(node) {
-  // FX-gamma Reading (C) routing signal: at least one URL with a DOMAIN (non-IP)
-  // host. IP-literal-only rows -> false -> route to w' (T-2 invariant preserved).
-  // Mirrors feature_extractor.py _has_non_ip_url.
+  // Routing signal: at least one URL with a domain (non-IP) host. IP-literal-only
+  // rows return false and route to the text-only head, preserving the invariant
+  // that IP-literals are rule inputs, not structured support. Mirrors
+  // feature_extractor.py _has_non_ip_url.
   const urls = Array.isArray(node.urls) ? node.urls : [];
   for (const u of urls) {
     const h = hostOf(u);
@@ -210,9 +204,9 @@ function anyInformativeStructuredFeaturePopulated(features, hasDomainUrl) {
   }
   for (const name of signalCarryingFeatures()) {
     if (name === 'has_url') {
-      // has_url as a SUPPORT tell = 'has a non-IP (domain) URL', not the raw
-      // has_url feature (1 even for IP-literal). Preserves the T-2 IP-literal
-      // invariant while routing domain-URL rows to full fusion w.
+      // has_url as a support tell means 'has a non-IP (domain) URL', not the raw
+      // has_url feature (which is 1 even for an IP-literal). Preserves the
+      // IP-literal invariant while routing domain-URL rows to full fusion.
       if (hasDomainUrl) return true;
     } else if (features[featureIndex(name)] !== 0) {
       return true;
@@ -222,7 +216,7 @@ function anyInformativeStructuredFeaturePopulated(features, hasDomainUrl) {
 }
 
 // ---------------------------------------------------------------------------
-// T-1 / O-10: hard rules. Independently-triggering set EMPTY in v1 production.
+// Hard rules. The independently-triggering set is empty in v1 production.
 // ---------------------------------------------------------------------------
 
 function ruleUrlIsIpLiteral(node) {
@@ -233,8 +227,8 @@ function ruleUrlIsIpLiteral(node) {
   return false;
 }
 
-// v1 SHIP registry of INDEPENDENTLY-TRIGGERING rules. EMPTY (O-10). Adding an
-// entry is the R4-era graduation step -- one visible site.
+// v1 registry of independently-triggering rules. Empty in v1 production; adding
+// an entry is the graduation step for a later release — one visible site.
 const VALIDATED_TRIGGERING_RULES = Object.freeze([]);  // [{name, predicate}], empty in v1
 
 function evaluateValidatedHardRules(node) {
@@ -259,7 +253,7 @@ function extract(node, brandMap, opts) {
 
   let ruleFires;
   if (testRules) {
-    // O-10 verification path (never reachable in production).
+    // verification path (never reachable in production).
     ruleFires = [];
     for (const { name, predicate } of testRules) {
       if (predicate(node)) ruleFires.push(name);
@@ -278,14 +272,13 @@ function extract(node, brandMap, opts) {
 
 // ---------------------------------------------------------------------------
 // (2) Browser binding: the single DOM-contact site. In production this parses
-// the dom_adapter's body Element into the abstract node. Kept thin and isolated
-// (Layer 2). Not exercised by the logic tests (they inject a plain node).
+// the dom_adapter's body Element into the abstract node. Kept thin and isolated.
+// Not exercised by the logic tests (they inject a plain node).
 // ---------------------------------------------------------------------------
 
 function parseNode(bodyElement, doc) {
-  // Selectors live HERE only (Layer 2). These are placeholders pending the same
-  // <<< CONFIRM ON LIVE GMAIL discipline the dom_adapter applied to O-5; the
-  // contract logic above does not depend on them being correct.
+  // These selectors are placeholders, pending confirmation against live Gmail;
+  // the contract logic above does not depend on them being correct.
   const textOf = (el) => (el && typeof el.textContent === 'string' ? el.textContent : '');
   const body = textOf(bodyElement);
 
